@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 from ..providers.base import ScraperProvider, LLMProvider
+from ..providers.storage.base import StorageProvider
 from ..models.schemas import ScrapedPost, PainScore
 
 logger = logging.getLogger(__name__)
@@ -10,9 +11,13 @@ logger = logging.getLogger(__name__)
 class DiscoveryModule:
     """Core logic for finding and classifying high-signal pain points."""
     
-    def __init__(self, scraper: ScraperProvider, llm: LLMProvider):
+    def __init__(self, scraper: ScraperProvider, llm: LLMProvider, storage: Optional[StorageProvider] = None):
         self.scraper = scraper
         self.llm = llm
+        self.storage = storage
+        
+        if self.storage:
+            self.storage.initialize()
         
     def fetch_potential_pains(self, target_subreddits: List[str], limit_per_sub: int = 50) -> List[ScrapedPost]:
         """Fetch posts from target subreddits."""
@@ -107,6 +112,14 @@ class DiscoveryModule:
             
             if pain_info.composite_value >= min_score:
                 results.append((post, pain_info))
+                
+                # Persist to storage if available
+                if self.storage:
+                    try:
+                        self.storage.save_post(post)
+                        self.storage.save_signal(post.id, pain_info)
+                    except Exception as e:
+                        logger.error(f"Error saving to storage: {e}")
                 
         # Sort by composite value descending
         results.sort(key=lambda x: x[1].composite_value, reverse=True)

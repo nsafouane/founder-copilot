@@ -14,8 +14,34 @@ def mock_llm():
     return MagicMock()
 
 @pytest.fixture
-def discovery_module(mock_scraper, mock_llm):
-    return DiscoveryModule(scraper=mock_scraper, llm=mock_llm)
+def mock_storage():
+    return MagicMock()
+
+@pytest.fixture
+def discovery_module(mock_scraper, mock_llm, mock_storage):
+    return DiscoveryModule(scraper=mock_scraper, llm=mock_llm, storage=mock_storage)
+
+def test_discover_with_storage(discovery_module, mock_scraper, mock_llm, mock_storage):
+    post1 = ScrapedPost(
+        id="1", source="reddit", title="High Signal", author="user1", 
+        url="url1", upvotes=100, comments_count=50, created_at=datetime.now()
+    )
+    mock_scraper.scrape.return_value = [post1]
+    
+    pain_data = {
+        "score": 0.85,
+        "reasoning": "Good",
+        "detected_problems": ["p1"],
+        "suggested_solutions": ["s1"]
+    }
+    mock_llm.complete.return_value = json.dumps(pain_data)
+    
+    results = discovery_module.discover(["test-sub"])
+    
+    assert len(results) == 1
+    mock_storage.save_post.assert_called_once_with(post1)
+    mock_storage.save_signal.assert_called_once()
+    assert mock_storage.save_signal.call_args[0][0] == "1"
 
 def test_fetch_potential_pains(discovery_module, mock_scraper):
     mock_scraper.scrape.return_value = [
