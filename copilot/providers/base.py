@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any, AsyncIterator
-from ..models.schemas import ScrapedPost
+from ..models.schemas import ScrapedPost, PainScore
 
 class ScraperProvider(ABC):
     """Abstract base class for all scraper implementations."""
