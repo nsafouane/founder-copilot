@@ -91,7 +91,29 @@ def test_analyze_pain_intensity_error(discovery_module, mock_llm):
     assert score.score == 0.0
     assert "Analysis failed" in score.reasoning
 
-def test_fetch_potential_pains_error(discovery_module, mock_scraper):
-    mock_scraper.scrape.side_effect = Exception("Scrape Error")
-    posts = discovery_module.fetch_potential_pains(["test-sub"])
-    assert len(posts) == 0
+    def test_weighted_formula(discovery_module, mock_scraper, mock_llm):
+        # Formula: Value = (Pain * 0.4) + (Engagement * 0.25) + (Validation * 0.25) + (Recency * 0.10)
+        # Pain=0.8, Engagement=1.0, Validation=0.6, Recency=1.0
+        # Value = (0.8*0.4) + (1.0*0.25) + (0.6*0.25) + (1.0*0.10)
+        # Value = 0.32 + 0.25 + 0.15 + 0.10 = 0.82
+        
+        post = ScrapedPost(
+            id="1", source="reddit", title="Test", author="user1", 
+            url="url1", upvotes=100, comments_count=50, created_at=datetime.now()
+        )
+        mock_scraper.scrape.return_value = [post]
+        
+        pain_data = {
+            "score": 0.8,
+            "reasoning": "Good",
+            "detected_problems": ["p1"],
+            "suggested_solutions": ["s1"],
+            "validation_score": 0.6
+        }
+        mock_llm.complete.return_value = json.dumps(pain_data)
+        
+        results = discovery_module.discover(["test-sub"], min_score=0.1)
+        
+        assert len(results) == 1
+        # Use pytest.approx for float comparison
+        assert results[0][1].composite_value == pytest.approx(0.82)

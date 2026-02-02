@@ -23,8 +23,8 @@ class GroqProvider(LLMProvider):
             raise ValueError("Groq API key is required.")
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
         retry=retry_if_exception_type(requests.exceptions.RequestException)
     )
     def complete(self, prompt: str, **kwargs) -> str:

@@ -19,8 +19,8 @@ class OllamaProvider(LLMProvider):
         self.model = config.get("model", self.model)
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
         retry=retry_if_exception_type(requests.exceptions.RequestException)
     )
     def complete(self, prompt: str, **kwargs) -> str:
