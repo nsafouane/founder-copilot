@@ -22,3 +22,9 @@ class PainScore(BaseModel):
     reasoning: str
     detected_problems: List[str] = Field(default_factory=list)
     suggested_solutions: List[str] = Field(default_factory=list)
+    
+    # New metrics for composite scoring
+    engagement_score: float = Field(default=0.0, ge=0, le=1)
+    validation_score: float = Field(default=0.0, ge=0, le=1)
+    recency_score: float = Field(default=0.0, ge=0, le=1)
+    composite_value: float = Field(default=0.0, ge=0, le=1)

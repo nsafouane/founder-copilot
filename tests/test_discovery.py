@@ -77,3 +77,21 @@ def test_discover_flow(discovery_module, mock_scraper, mock_llm):
     assert len(results) == 1
     assert results[0][0].id == "1"
     assert results[0][1].score == 0.85
+    assert results[0][1].engagement_score == 1.0  # (100*0.5 + 50*1.0)/100 = 1.0
+    assert results[0][1].composite_value > 0.0
+
+def test_analyze_pain_intensity_error(discovery_module, mock_llm):
+    post = ScrapedPost(
+        id="1", source="reddit", title="Test", author="user1", 
+        url="url1", upvotes=10, comments_count=5, created_at=datetime.now()
+    )
+    mock_llm.complete.side_effect = Exception("API Error")
+    
+    score = discovery_module.analyze_pain_intensity(post)
+    assert score.score == 0.0
+    assert "Analysis failed" in score.reasoning
+
+def test_fetch_potential_pains_error(discovery_module, mock_scraper):
+    mock_scraper.scrape.side_effect = Exception("Scrape Error")
+    posts = discovery_module.fetch_potential_pains(["test-sub"])
+    assert len(posts) == 0

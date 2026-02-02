@@ -1,6 +1,7 @@
 import requests
 from typing import Dict, Any
 from .base import LLMProvider
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class OllamaProvider(LLMProvider):
     """LLM Provider using local Ollama instance."""
@@ -17,6 +18,11 @@ class OllamaProvider(LLMProvider):
         self.host = config.get("host", self.host)
         self.model = config.get("model", self.model)
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(requests.exceptions.RequestException)
+    )
     def complete(self, prompt: str, **kwargs) -> str:
         url = f"{self.host}/api/chat"
         

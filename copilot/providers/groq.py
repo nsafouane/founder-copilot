@@ -2,6 +2,7 @@ import os
 import requests
 from typing import Dict, Any, Optional
 from .base import LLMProvider
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class GroqProvider(LLMProvider):
     """LLM Provider using Groq API for high-speed inference."""
@@ -21,6 +22,11 @@ class GroqProvider(LLMProvider):
         if not self.api_key:
             raise ValueError("Groq API key is required.")
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(requests.exceptions.RequestException)
+    )
     def complete(self, prompt: str, **kwargs) -> str:
         if not self.api_key:
             raise RuntimeError("GroqProvider not configured.")

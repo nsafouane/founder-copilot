@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timezone
 from typing import List, Optional
 from ..providers.base import ScraperProvider, LLMProvider
 from ..models.schemas import ScrapedPost, PainScore
@@ -38,6 +39,7 @@ class DiscoveryModule:
         - reasoning: A brief explanation of why you gave this score.
         - detected_problems: A list of specific problems mentioned.
         - suggested_solutions: A list of potential solutions or app ideas that could solve this.
+        - validation_score: A float between 0.0 and 1.0 (How much validation/evidence of need is in the post?)
         """
         
         system_prompt = "You are an expert product researcher specializing in identifying high-signal founder opportunities from social signals. You output strictly valid JSON."
@@ -55,7 +57,31 @@ class DiscoveryModule:
             logger.error(f"Error analyzing post {post.id}: {e}")
             return PainScore(score=0.0, reasoning=f"Analysis failed: {str(e)}")
 
-    def discover(self, subreddits: List[str], min_score: float = 0.7) -> List[tuple[ScrapedPost, PainScore]]:
+    def calculate_engagement_score(self, post: ScrapedPost) -> float:
+        """Calculate engagement score (0-1) based on upvotes and comments."""
+        # Heuristic: 100 upvotes + 50 comments = 1.0
+        score = (post.upvotes * 0.5 + post.comments_count * 1.0) / 100.0
+        return min(1.0, score)
+
+    def calculate_recency_score(self, post: ScrapedPost) -> float:
+        """Calculate recency score (0-1)."""
+        now = datetime.now(timezone.utc)
+        
+        # Ensure post.created_at is timezone aware
+        created_at = post.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+            
+        delta = now - created_at
+        days = delta.days
+        
+        if days < 1: return 1.0
+        if days < 7: return 0.8
+        if days < 30: return 0.5
+        if days < 90: return 0.2
+        return 0.0
+
+    def discover(self, subreddits: List[str], min_score: float = 0.5) -> List[tuple[ScrapedPost, PainScore]]:
         """Run full discovery pipeline: scrape -> analyze -> filter."""
         posts = self.fetch_potential_pains(subreddits)
         results = []
@@ -65,10 +91,23 @@ class DiscoveryModule:
             if post.upvotes < 5 and post.comments_count < 2:
                 continue
                 
-            pain_score = self.analyze_pain_intensity(post)
-            if pain_score.score >= min_score:
-                results.append((post, pain_score))
+            pain_info = self.analyze_pain_intensity(post)
+            
+            # Calculate composite metrics
+            pain_info.engagement_score = self.calculate_engagement_score(post)
+            pain_info.recency_score = self.calculate_recency_score(post)
+            
+            # Formula: Value = (Pain * 0.4) + (Engagement * 0.25) + (Validation * 0.25) + (Recency * 0.10)
+            pain_info.composite_value = (
+                (pain_info.score * 0.4) +
+                (pain_info.engagement_score * 0.25) +
+                (pain_info.validation_score * 0.25) +
+                (pain_info.recency_score * 0.10)
+            )
+            
+            if pain_info.composite_value >= min_score:
+                results.append((post, pain_info))
                 
-        # Sort by score descending
-        results.sort(key=lambda x: x[1].score, reverse=True)
+        # Sort by composite value descending
+        results.sort(key=lambda x: x[1].composite_value, reverse=True)
         return results
