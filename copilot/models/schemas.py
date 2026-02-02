@@ -28,3 +28,25 @@ class PainScore(BaseModel):
     validation_score: float = Field(default=0.0, ge=0, le=1)
     recency_score: float = Field(default=0.0, ge=0, le=1)
     composite_value: float = Field(default=0.0, ge=0, le=1)
+
+class ValidationReport(BaseModel):
+    """Deep research report for an idea."""
+    post_id: str
+    idea_summary: str
+    market_size_estimate: str
+    competitors: List[Dict[str, str]] = Field(default_factory=list) # Name, URL, Description
+    swot_analysis: Dict[str, List[str]] = Field(default_factory=dict)
+    validation_verdict: str
+    next_steps: List[str] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=datetime.now)
+
+class Lead(BaseModel):
+    """Potential customer identified from intent."""
+    id: Optional[int] = None
+    post_id: str
+    author: str
+    content_snippet: str
+    intent_score: float = Field(..., ge=0, le=1)
+    contact_url: str
+    status: str = "new"  # new, contacted, ignore
+    created_at: datetime = Field(default_factory=datetime.now)

@@ -2,6 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from rich.markdown import Markdown
 from typing import List, Optional
 import os
 
@@ -11,41 +12,51 @@ from ..providers.groq import GroqProvider
 from ..providers.reddit_scraper import RedditScraper
 from ..providers.storage.sqlite_provider import SQLiteProvider
 from ..modules.discovery import DiscoveryModule
+from ..modules.validation import ValidationModule
+from ..modules.monitor import MonitorModule
+from ..modules.leads import LeadModule
 
 app = typer.Typer(help="Founder Co-Pilot CLI - Discovery and Validation Engine.")
 console = Console()
 config_manager = ConfigManager()
 
-def get_discovery_module() -> DiscoveryModule:
+def get_registry() -> ProviderRegistry:
     registry = ProviderRegistry()
     
     # Setup Storage
     db_path = config_manager.get("db_path")
     storage = SQLiteProvider(db_path=db_path)
+    storage.initialize()
     registry.register_storage(storage)
     
     # Setup LLM
     llm_name = config_manager.get("llm_provider")
     if llm_name == "groq":
         api_key = config_manager.get("groq_api_key") or os.getenv("GROQ_API_KEY")
-        llm = GroqProvider(api_key=api_key)
+        llm = GroqProvider()
+        llm.configure({"api_key": api_key})
         registry.register_llm(llm)
     else:
-        # Fallback/Other LLMs could be added here
         raise ValueError(f"Unsupported LLM provider: {llm_name}")
         
     # Setup Scraper
     scraper_name = config_manager.get("scraper_provider")
     if scraper_name == "reddit":
-        scraper = RedditScraper(
-            client_id=config_manager.get("reddit_client_id") or os.getenv("REDDIT_CLIENT_ID"),
-            client_secret=config_manager.get("reddit_client_secret") or os.getenv("REDDIT_CLIENT_SECRET"),
-            user_agent=config_manager.get("reddit_user_agent")
-        )
+        scraper = RedditScraper()
+        scraper.configure({
+            "client_id": config_manager.get("reddit_client_id") or os.getenv("REDDIT_CLIENT_ID"),
+            "client_secret": config_manager.get("reddit_client_secret") or os.getenv("REDDIT_CLIENT_SECRET"),
+            "user_agent": config_manager.get("reddit_user_agent")
+        })
         registry.register_scraper(scraper)
     else:
         raise ValueError(f"Unsupported Scraper provider: {scraper_name}")
         
+    return registry
+
+def get_discovery_module(registry: ProviderRegistry) -> DiscoveryModule:
+    llm_name = config_manager.get("llm_provider")
+    scraper_name = config_manager.get("scraper_provider")
     return DiscoveryModule(
         scraper=registry.get_scraper(scraper_name),
         llm=registry.get_llm(llm_name),
@@ -60,9 +71,10 @@ def discover(
 ):
     """Discover high-signal pain points from social media."""
     subs = subreddits or config_manager.get("subreddits")
+    registry = get_registry()
     
     with console.status(f"[bold green]Discovering pain points in r/{', r/'.join(subs)}..."):
-        module = get_discovery_module()
+        module = get_discovery_module(registry)
         results = module.discover(subs, min_score=min_score)
         
     if not results:
@@ -110,18 +122,79 @@ def config(
 
 @app.command()
 def validate(post_id: str):
-    """Placeholder for Phase 4: Validation logic."""
-    console.print(Panel(f"Validation logic for post [bold]{post_id}[/bold] will be implemented in detail later in Phase 4.", title="Validate"))
+    """Deep validation logic for a specific post."""
+    registry = get_registry()
+    llm_name = config_manager.get("llm_provider")
+    module = ValidationModule(
+        llm=registry.get_llm(llm_name),
+        storage=registry.get_storage("sqlite")
+    )
+    
+    with console.status(f"[bold green]Performing deep research on post {post_id}..."):
+        try:
+            report = module.validate_idea(post_id)
+            md_content = module.format_report_markdown(report)
+            console.print(Markdown(md_content))
+        except Exception as e:
+            console.print(f"[red]Validation failed: {e}[/red]")
 
 @app.command()
-def monitor():
-    """Placeholder for Phase 4: Monitoring logic."""
-    console.print(Panel("Monitoring subreddits for new signals...", title="Monitor"))
+def monitor(
+    subreddits: Optional[List[str]] = typer.Option(None, "--sub", "-s", help="Subreddits to monitor"),
+    competitors: Optional[List[str]] = typer.Option(None, "--comp", "-c", help="Competitors to track")
+):
+    """Monitor subreddits for new signals and competitor mentions."""
+    subs = subreddits or config_manager.get("subreddits")
+    comps = competitors or ["OpenAI", "Anthropic", "Cursor", "Windsurf"] # Defaults
+    
+    registry = get_registry()
+    discovery = get_discovery_module(registry)
+    module = MonitorModule(discovery=discovery, storage=registry.get_storage("sqlite"))
+    
+    with console.status(f"[bold blue]Monitoring r/{', r/'.join(subs)} for mentions of {', '.join(comps)}..."):
+        mentions = module.monitor_competitors(subs, comps)
+        new_signals = module.run_periodic_discovery(subs)
+        
+    console.print(Panel(
+        f"Monitoring Run Complete.\n\n- Competitor Mentions Found: [bold]{mentions}[/bold]\n- New Pain Signals Found: [bold]{new_signals}[/bold]",
+        title="Monitor Results",
+        style="blue"
+    ))
 
 @app.command()
 def leads():
-    """View saved leads and potential customers."""
-    console.print(Panel("Leads management dashboard (SQLite)", title="Leads"))
+    """Scan for and view potential customer leads."""
+    registry = get_registry()
+    llm_name = config_manager.get("llm_provider")
+    storage = registry.get_storage("sqlite")
+    module = LeadModule(llm=registry.get_llm(llm_name), storage=storage)
+    
+    with console.status("[bold gold3]Scanning for high-intent leads..."):
+        new_leads = module.scan_for_leads()
+    
+    all_leads = storage.get_leads(limit=50)
+    
+    if not all_leads:
+        console.print("[yellow]No leads found yet. Try running discovery or monitoring first.[/yellow]")
+        return
+
+    table = Table(title="Potential Customer Leads (Intent > 0.6)")
+    table.add_column("Score", justify="right", style="cyan")
+    table.add_column("Author", style="magenta")
+    table.add_column("Needs Summary", style="green")
+    table.add_column("Link")
+    
+    for lead in all_leads:
+        table.add_row(
+            f"{lead.intent_score:.2f}",
+            lead.author,
+            lead.content_snippet[:80] + "..." if len(lead.content_snippet) > 80 else lead.content_snippet,
+            lead.contact_url
+        )
+        
+    console.print(table)
+    if new_leads:
+        console.print(f"\n[bold green]Identified {len(new_leads)} new leads in this run![/bold green]")
 
 if __name__ == "__main__":
     app()

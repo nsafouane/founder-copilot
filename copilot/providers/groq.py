@@ -38,6 +38,15 @@ class GroqProvider(LLMProvider):
         
         system_prompt = kwargs.get("system_prompt", "You are a helpful assistant.")
         
+        # Groq Fix: Ensure "JSON" is in the prompt if response_format is json_object
+        response_format = kwargs.get("response_format")
+        if response_format and isinstance(response_format, dict) and response_format.get("type") == "json_object":
+            if "json" not in system_prompt.lower():
+                system_prompt += " Please respond in valid JSON format."
+        
+        print(f"DEBUG: system_prompt='{system_prompt}'")
+        print(f"DEBUG: response_format={response_format}")
+
         payload = {
             "model": self.model,
             "messages": [
@@ -46,10 +55,14 @@ class GroqProvider(LLMProvider):
             ],
             "temperature": kwargs.get("temperature", 0.1),
             "max_tokens": kwargs.get("max_tokens", 1024),
-            "response_format": kwargs.get("response_format")
+            "response_format": response_format
         }
         
         response = requests.post(self.api_url, headers=headers, json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as e:
+            print(f"DEBUG: HTTP Error {response.status_code}: {response.text}")
+            raise e
         
         return response.json()["choices"][0]["message"]["content"]

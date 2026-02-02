@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-from ...models.schemas import ScrapedPost, PainScore
+from ...models.schemas import ScrapedPost, PainScore, Lead
 
 class StorageProvider(ABC):
     """Abstract base class for all storage implementations."""
@@ -29,4 +29,14 @@ class StorageProvider(ABC):
     @abstractmethod
     def get_posts(self, limit: int = 100) -> List[ScrapedPost]:
         """Retrieve recent posts."""
+        pass
+
+    @abstractmethod
+    def save_lead(self, lead: Lead) -> None:
+        """Save a potential customer lead."""
+        pass
+
+    @abstractmethod
+    def get_leads(self, limit: int = 100) -> List[Lead]:
+        """Retrieve recent leads."""
         pass

@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from .base import StorageProvider
-from ...models.schemas import ScrapedPost, PainScore
+from ...models.schemas import ScrapedPost, PainScore, Lead
 
 class SQLiteProvider(StorageProvider):
     """SQLite implementation of the StorageProvider."""
@@ -62,14 +62,17 @@ class SQLiteProvider(StorageProvider):
             )
         """)
         
-        # Leads table (Placeholder for future phases)
+        # Leads table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS leads (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 post_id TEXT,
-                contact_info TEXT,
+                author TEXT,
+                content_snippet TEXT,
                 intent_score REAL,
+                contact_url TEXT,
                 status TEXT,
+                created_at TEXT,
                 FOREIGN KEY (post_id) REFERENCES raw_posts (id)
             )
         """)
@@ -130,6 +133,38 @@ class SQLiteProvider(StorageProvider):
                 metadata=json.loads(row["metadata"]) if row["metadata"] else {}
             ))
         return posts
+
+    def save_lead(self, lead: Lead) -> None:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO leads (post_id, author, content_snippet, intent_score, contact_url, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            lead.post_id, lead.author, lead.content_snippet, 
+            lead.intent_score, lead.contact_url, lead.status, lead.created_at.isoformat()
+        ))
+        conn.commit()
+
+    def get_leads(self, limit: int = 100) -> List[Lead]:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM leads ORDER BY created_at DESC LIMIT ?", (limit,))
+        rows = cursor.fetchall()
+        
+        leads = []
+        for row in rows:
+            leads.append(Lead(
+                id=row["id"],
+                post_id=row["post_id"],
+                author=row["author"],
+                content_snippet=row["content_snippet"],
+                intent_score=row["intent_score"],
+                contact_url=row["contact_url"],
+                status=row["status"],
+                created_at=datetime.fromisoformat(row["created_at"])
+            ))
+        return leads
 
     def close(self):
         if self._conn:
