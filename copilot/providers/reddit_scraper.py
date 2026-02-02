@@ -1,8 +1,8 @@
 import praw
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from ..base import ScraperProvider
-from ...models.schemas import ScrapedPost
+from .base import ScraperProvider
+from ..models.schemas import ScrapedPost
 
 class RedditScraper(ScraperProvider):
     """Reddit scraper using PRAW."""
