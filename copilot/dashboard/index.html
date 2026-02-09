@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Founder Co-Pilot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <header class="mb-12">
+            <h1 class="text-4xl font-bold text-indigo-900">🚀 Founder Co-Pilot Dashboard</h1>
+            <p class="text-gray-600">Intelligence-driven SaaS opportunity discovery</p>
+        </header>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500">
+                <div class="text-sm font-medium text-gray-500 uppercase">Total Signals</div>
+                <div class="text-3xl font-bold text-gray-800">{{ stats.total_posts || 0 }}</div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
+                <div class="text-sm font-medium text-gray-500 uppercase">High Signal (Score > 0.7)</div>
+                <div class="text-3xl font-bold text-gray-800">{{ stats.high_signal_opportunities || 0 }}</div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-500">
+                <div class="text-sm font-medium text-gray-500 uppercase">Total Leads</div>
+                <div class="text-3xl font-bold text-gray-800">{{ stats.total_leads || 0 }}</div>
+            </div>
+        </div>
+
+        <!-- Main Content Tabs -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="flex border-b">
+                <button 
+                    @click="activeTab = 'opportunities'" 
+                    :class="['px-6 py-4 font-medium transition-colors', activeTab === 'opportunities' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700']"
+                >
+                    Top Opportunities
+                </button>
+                <button 
+                    @click="activeTab = 'leads'" 
+                    :class="['px-6 py-4 font-medium transition-colors', activeTab === 'leads' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700']"
+                >
+                    Qualified Leads
+                </button>
+            </div>
+
+            <div class="p-6">
+                <!-- Opportunities Tab -->
+                <div v-if="activeTab === 'opportunities'" class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead>
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opportunity Title</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Channel</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr v-for="opp in opportunities" :key="opp.post_id" class="hover:bg-gray-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="['px-2.5 py-0.5 rounded-full text-xs font-semibold', getScoreClass(opp.final_score)]">
+                                        {{ opp.final_score.toFixed(2) }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ opp.source }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-900 font-medium">
+                                    <div class="max-w-md truncate">{{ opp.title }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ opp.display_channel }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <a :href="opp.url" target="_blank" class="text-indigo-600 hover:text-indigo-900 mr-4">View Source</a>
+                                    <button class="text-green-600 hover:text-green-900">Validate</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Leads Tab -->
+                <div v-if="activeTab === 'leads'" class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead>
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Intent</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Snippet</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr v-for="lead in leads" :key="lead.id" class="hover:bg-gray-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                                        {{ lead.intent_score.toFixed(2) }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ lead.author }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
+                                    <div class="max-w-xs truncate">{{ lead.content_snippet }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ lead.source }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <a :href="lead.contact_url" target="_blank" class="text-indigo-600 hover:text-indigo-900">Contact</a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue
+
+        createApp({
+            setup() {
+                const activeTab = ref('opportunities')
+                const opportunities = ref([])
+                const leads = ref([])
+                const stats = ref({})
+                const API_BASE = 'http://localhost:8000'
+
+                const fetchData = async () => {
+                    try {
+                        const [oppRes, leadRes, statRes] = await Promise.all([
+                            fetch(`${API_BASE}/opportunities?min_score=0.4`),
+                            fetch(`${API_BASE}/leads`),
+                            fetch(`${API_BASE}/stats`)
+                        ])
+                        opportunities.value = await oppRes.json()
+                        leads.value = await leadRes.json()
+                        stats.value = await statRes.json()
+                    } catch (e) {
+                        console.error('Failed to fetch dashboard data:', e)
+                    }
+                }
+
+                const getScoreClass = (score) => {
+                    if (score >= 0.8) return 'bg-green-100 text-green-800'
+                    if (score >= 0.6) return 'bg-blue-100 text-blue-800'
+                    return 'bg-gray-100 text-gray-800'
+                }
+
+                onMounted(fetchData)
+
+                return {
+                    activeTab,
+                    opportunities,
+                    leads,
+                    stats,
+                    getScoreClass
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

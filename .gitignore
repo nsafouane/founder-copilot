@@ -1,7 +1,52 @@
-# .gitignore
+# Python artifacts
 venv/
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Tooling
 .pytest_cache/
 .coverage
-*.db
+htmlcov/
+.opencode/
+.ruff_cache/
+.DS_Store
+Thumbs.db
+
+# Configuration
+config.json
+test_config.json
 .env
+
+# Logs & Temporary
+*.log
+e2e_verified_output/
+e2e_test_results/
+reports_*.md
+*_COMPLETION_CERTIFICATE.md
+*_REVIEW_REPORT.md
+*_verification.sh
+*_verification.py
